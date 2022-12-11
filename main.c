@@ -45,7 +45,7 @@ typedef struct
     char comm[64];
     char state;
     pid_t ppid;
-    int height;
+    int depth;
 } process_stat;
 
 typedef struct _Node
@@ -64,7 +64,7 @@ typedef struct _Node
  */
 
 static Node head = {
-    .stat.height = -1,
+    .stat.depth = -1,
     .stat.pid = 0
 };
 
@@ -102,8 +102,41 @@ init(1)-+-init(7)---init(8)---bash(9)
 观察得出，我们需要找到每一行即有child，又有child.next_brother时的位置。也就是图中的'+'的位置。因为在下一行里，上一行的'+'会变为'|'，而本行开始的位置，也就正是上一行的'+'
  */
 
+typedef struct _Branch_mark{
+    int depth[64];
+    int offset[64];
+    int num;
+}Branch_mark;
 
-void print_node(Node *node, int offset, int is_bro)
+/* 
+    找出这个深度路径之前有多少个分支
+ */
+void find_prev_branch(Branch_mark *mark, int depth, int *num)
+{
+    int i = 0;
+    for(; i < mark->num; i++)
+    {
+        if(mark->depth[i] >= depth)
+        {
+            break;
+        }
+    }
+    *num = i;
+}
+
+int is_branch_offset(int cur, int *offsets, int num)
+{
+    for (int i = 0; i < num; i++)
+    {
+        if(cur == offsets[i])
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void print_node(Node *node, int offset, Branch_mark *mark, int is_bro)
 {
     if (!node)
         return;
@@ -112,9 +145,18 @@ void print_node(Node *node, int offset, int is_bro)
     if (is_bro)
     {
         putchar('\n');
+        int pp = 0;
+        find_prev_branch(mark, node->stat.depth - 1, &pp);
         for (int i = 0; i < offset - 2; i++)
         {
-            putchar(' ');
+            if(is_branch_offset(i, mark->offset, pp))
+            {
+                putchar('*');
+            }
+            else
+            {
+                putchar(' ');
+            }
         }
         if (node->brother)
         {
@@ -136,14 +178,21 @@ void print_node(Node *node, int offset, int is_bro)
     else if (node->children->brother)
     {
         offset += printf("-+-");
+        if(mark->num > 0 && mark->depth[mark->num - 1] == node->stat.depth) {
+
+        } else {
+            mark->depth[mark->num] = node->stat.depth;
+            mark->offset[mark->num] = offset - 2;
+            mark->num++;
+        }
     }
     else
     {
         offset += printf("---");
     }
 
-    print_node(node->children, offset, 0);
-    print_node(node->brother, prev_offset, 1);
+    print_node(node->children, offset, mark, 0);
+    print_node(node->brother, prev_offset, mark, 1);
 }
 
 void preOrder(Node *head, node_iter_func func, void *user)
@@ -203,12 +252,12 @@ void insert_new_node_tail(Node *node, Node *new)
 {
     if (!node->children)
     {
-        new->stat.height = node->stat.height + 1;
+        new->stat.depth = node->stat.depth + 1;
         node->children = new;
     }
     else if (!node->children->brother)
     {
-        new->stat.height = node->children->stat.height;
+        new->stat.depth = node->children->stat.depth;
         node->children->brother = new;
     }
     else
@@ -218,7 +267,7 @@ void insert_new_node_tail(Node *node, Node *new)
         {
             tmp = tmp->brother;
         }
-        new->stat.height = node->children->stat.height;
+        new->stat.depth = node->children->stat.depth;
         tmp->brother = new;
     }
 }
@@ -245,7 +294,7 @@ int insert_new_node(Node *node, void *user)
 
 int print_node_simple(Node *n, void *null)
 {
-    printf("cur pid %d ppid %d height %d cmd %s child %p\n", n->stat.pid, n->stat.ppid, n->stat.height, n->stat.comm, n->children);
+    printf("cur pid %d ppid %d depth %d cmd %s child %p\n", n->stat.pid, n->stat.ppid, n->stat.depth, n->stat.comm, n->children);
     return 0;
 }
 
@@ -302,7 +351,10 @@ int main(int argc, char **argv)
         }
     }
 
-    print_node(head.children, 0, 0);
+    Branch_mark mark = {
+        .num = 0
+    };
+    print_node(head.children, 0, &mark, 0);
     putchar('\n');
 
     preOrder(head.children, free_node, NULL);
