@@ -45,6 +45,7 @@ typedef struct
     char comm[64];
     char state;
     pid_t ppid;
+    int height;
 } process_stat;
 
 typedef struct _Node
@@ -68,7 +69,10 @@ typedef struct _Node_path_buff
     int node_num;
 } Node_path_buff;
 
-static Node head;
+static Node head = {
+    .stat.height = -1,
+    .stat.pid = 0
+};
 
 static Node *node_path_buffer[NODE_MAX];
 
@@ -123,15 +127,17 @@ init(1)-+-init(7)---init(8)---bash(9)
 观察得出，我们需要找到每一行即有child，又有child.next_brother时的位置。也就是图中的'+'的位置。因为在下一行里，上一行的'+'会变为'|'，而本行开始的位置，也就正是上一行的'+'
  */
 
-void print_child_bro(Node *node, int offset, int brother_offset, int is_bro)
+
+void print_node(Node *node, int offset, int is_bro)
 {
     if (!node)
         return;
 
+    int prev_offset = offset;
     if (is_bro)
     {
         putchar('\n');
-        for (int i = 0; i < offset - 1; i++)
+        for (int i = 0; i < offset - 2; i++)
         {
             putchar(' ');
         }
@@ -144,22 +150,25 @@ void print_child_bro(Node *node, int offset, int brother_offset, int is_bro)
             putchar('`');
         }
         putchar('-');
-        brother_offset = offset;
     }
 
     offset += printf("%s(%d)", node->stat.comm, node->stat.pid);
-    if (node->children && node->children->brother)
+
+    if (!node->children)
+    {
+
+    }
+    else if (node->children->brother)
     {
         offset += printf("-+-");
-        brother_offset = offset;
     }
-    else if (node->children)
+    else
     {
         offset += printf("---");
     }
 
-    print_child_bro(node->children, offset, brother_offset, 0);
-    print_child_bro(node->brother, brother_offset, 0, 1);
+    print_node(node->children, offset, 0);
+    print_node(node->brother, prev_offset, 1);
 }
 
 void preOrder_print2(Node *node, int offset, int brother_offset)
@@ -247,10 +256,12 @@ void insert_new_node_tail(Node *node, Node *new)
 {
     if (!node->children)
     {
+        new->stat.height = node->stat.height + 1;
         node->children = new;
     }
     else if (!node->children->brother)
     {
+        new->stat.height = node->children->stat.height;
         node->children->brother = new;
     }
     else
@@ -260,6 +271,7 @@ void insert_new_node_tail(Node *node, Node *new)
         {
             tmp = tmp->brother;
         }
+        new->stat.height = node->children->stat.height;
         tmp->brother = new;
     }
 }
@@ -286,8 +298,7 @@ int insert_new_node(Node *node, void *user)
 
 int print_node_simple(Node *n, void *null)
 {
-    printf("cur pid %d ppid %d cmd %s child %p\n", n->stat.pid, n->stat.ppid,
-    n->stat.comm, n->children);
+    printf("cur pid %d ppid %d height %d cmd %s child %p\n", n->stat.pid, n->stat.ppid, n->stat.height, n->stat.comm, n->children);
     return 0;
 }
 
@@ -353,14 +364,7 @@ int main(int argc, char **argv)
         }
     }
 
-    // preOrder(head.children, print_node_simple, NULL);
-    // tree_str_buff tree_buff;
-    // bzero(&tree_buff, sizeof tree_buff);
-    // preOrder(head.children, print_node_liketree, &tree_buff);
-
-    // preOrder_print(head.children, node_path_buffer, 0);
-    // preOrder_print2(head.children, 0, 0);
-    print_child_bro(head.children, 0, 0, 0);
+    print_node(head.children, 0, 0);
     putchar('\n');
 
     preOrder(head.children, free_node, NULL);
