@@ -1,17 +1,16 @@
-#include <stdio.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <stdint.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <linux/sched.h>
 #include <assert.h>
+#include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
+#include <linux/sched.h>
+#include <memory.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <memory.h>
-#include <ctype.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 /*
     首先需要找一个合理的数据结构，然后确定如何迭代他。需要实现的两个迭代函数：
@@ -55,15 +54,16 @@ typedef struct _Node
     process_stat stat;
 } Node;
 
-/* 
+/*
     按行format，有bro节点的地方，用+衔接，其他地方用-衔接
-    
+
     第一步，我们按行输出所有的路径
     第二步，把和上面一行“重复”的路径去掉
     第三步，把分叉的节点符号替换掉
  */
 
-typedef struct _Node_path_buff {
+typedef struct _Node_path_buff
+{
     Node *path_lines[NODE_MAX];
     int node_num;
 } Node_path_buff;
@@ -82,8 +82,10 @@ void print_nodes(Node **buffer, int len)
     char buf[BUFSIZ];
     int offset = 0, rc = 0;
     const char *connecter = "---";
-    for(int i = 0; i < len; i++) {
-        offset += sprintf(buf + offset, "%s(%d)%s", buffer[i]->stat.comm, buffer[i]->stat.pid, connecter);
+    for (int i = 0; i < len; i++)
+    {
+        offset += sprintf(buf + offset, "%s(%d)%s", buffer[i]->stat.comm,
+                          buffer[i]->stat.pid, connecter);
     }
     buf[offset] = '\0';
     printf("%s\n", buf);
@@ -97,7 +99,7 @@ void preOrder_print(Node *head, Node **buffer, int len)
     buffer[len] = head;
     len++;
 
-    if(!head->children)
+    if (!head->children)
     {
         print_nodes(buffer, len);
     }
@@ -106,16 +108,15 @@ void preOrder_print(Node *head, Node **buffer, int len)
     preOrder_print(head->brother, buffer, len);
 }
 
-/* 
+/*
 example:
 
 init(1)-+-init(7)---init(8)---bash(9)
         |-init(232)---init(233)-+-sh(234)---sh(235)---sh(240)---node(244)-+-node(264)-+-bash(493)
-        |                       |                                         |           `-bash(781)---pstree(2577)
-        |                       |                                         |-node(302)-+-cpptools(466)
-        |                       |                                         |           `-node(574)
-        |                       |                                         `-node(313)
-        |                       `-cpptools-srv(2539)
+        |                       |                                         |
+`-bash(781)---pstree(2577) |                       | |-node(302)-+-cpptools(466)
+        |                       |                                         |
+`-node(574) |                       | `-node(313) | `-cpptools-srv(2539)
         |-init(255)---init(256)---node(257)
         `-init(292)---init(293)---node(295)
 
@@ -127,14 +128,19 @@ void print_child_bro(Node *node, int offset, int brother_offset, int is_bro)
     if (!node)
         return;
 
-    if(is_bro){
+    if (is_bro)
+    {
         putchar('\n');
-        for(int i = 0; i < offset - 1; i++){
+        for (int i = 0; i < offset - 1; i++)
+        {
             putchar(' ');
         }
-        if (node->brother){
+        if (node->brother)
+        {
             putchar('|');
-        } else {
+        }
+        else
+        {
             putchar('`');
         }
         putchar('-');
@@ -142,7 +148,7 @@ void print_child_bro(Node *node, int offset, int brother_offset, int is_bro)
     }
 
     offset += printf("%s(%d)", node->stat.comm, node->stat.pid);
-    if (node->children && node->children->brother) 
+    if (node->children && node->children->brother)
     {
         offset += printf("-+-");
         brother_offset = offset;
@@ -162,18 +168,20 @@ void preOrder_print2(Node *node, int offset, int brother_offset)
         return;
 
     offset += printf("%s(%d)", node->stat.comm, node->stat.pid);
-    if (node->children && node->children->brother) 
+    if (node->children && node->children->brother)
     {
         offset += printf("-+-");
         brother_offset = offset - 1;
-    } 
+    }
     else if (node->children)
     {
         offset += printf("---");
-    } else if (!node->children)
+    }
+    else if (!node->children)
     {
         printf("\n");
-        for (int i = 0; i < brother_offset; i++) {
+        for (int i = 0; i < brother_offset; i++)
+        {
             putchar(' ');
         }
     }
@@ -188,8 +196,8 @@ void preOrder(Node *head, node_iter_func func, void *user)
         return;
 
     Node *child = head->children, *bro = head->brother;
-    
-    if (func(head, user) != 0) 
+
+    if (func(head, user) != 0)
     {
         return;
     }
@@ -221,50 +229,59 @@ Node *create_node_with_stat(process_stat *stat)
 
 static int INSERT_MODE = INSERT_TO_TAIL;
 
-int insert_child_head(Node *node, void *user)
+void insert_new_node_head(Node *node, Node *new)
 {
-    process_stat *p_stat = (process_stat *)user;
-    if (node->stat.pid == p_stat->ppid)
+    if (!node->children)
     {
-        if (!node->children)
-        {
-            node->children = create_node_with_stat(p_stat);
-        }
-        else
-        {
-            Node *tmp = node->children->brother;
-            node->children->brother = create_node_with_stat(p_stat);
-            node->children->brother->brother = tmp;
-        }
-        return 1;
+        node->children = new;
     }
-    return 0;
+    else
+    {
+        Node *tmp = node->children->brother;
+        node->children->brother = new;
+        node->children->brother->brother = tmp;
+    }
 }
 
-int insert_child_tail(Node *node, void *user)
+void insert_new_node_tail(Node *node, Node *new)
+{
+    if (!node->children)
+    {
+        node->children = new;
+    }
+    else if (!node->children->brother)
+    {
+        node->children->brother = new;
+    }
+    else
+    {
+        Node *tmp = node->children->brother;
+        while (tmp->brother)
+        {
+            tmp = tmp->brother;
+        }
+        tmp->brother = new;
+    }
+}
+
+int insert_child(Node *node, void *user)
 {
     process_stat *p_stat = (process_stat *)user;
-    if (node->stat.pid == p_stat->ppid)
+    if (node->stat.pid != p_stat->ppid)
     {
-        if (!node->children)
-        {
-            node->children = create_node_with_stat(p_stat);
-        }
-        else
-        {
-            Node *tmp = node->children->brother;
-            if (tmp) {
-                while (tmp->brother) {
-                    tmp = tmp->brother;
-                }
-                tmp->brother = create_node_with_stat(p_stat);
-            } else {
-                node->children->brother = create_node_with_stat(p_stat);
-            }
-        }
+        return 0;
+    }
+
+    Node *new = create_node_with_stat(p_stat);
+    if (!new)
+    {
+        // todo
         return 1;
     }
-    return 0;
+
+    INSERT_MODE == INSERT_TO_TAIL ? insert_new_node_tail(node, new) : insert_new_node_head(node, new);
+
+    return 1;
 }
 
 /*
@@ -294,11 +311,15 @@ int insert_child_ordered(Node *node, void *user)
 
 int print_node_simple(Node *n, void *null)
 {
-    // printf("cur pid %d ppid %d cmd %s child %p\n", n->stat.pid, n->stat.ppid, n->stat.comm, n->children);
-    if(n->children){
-        printf("%s(%d)->",n->stat.comm ,n->stat.pid);
-    } else {
-        printf("%s(%d)\n",n->stat.comm, n->stat.pid);
+    // printf("cur pid %d ppid %d cmd %s child %p\n", n->stat.pid, n->stat.ppid,
+    // n->stat.comm, n->children);
+    if (n->children)
+    {
+        printf("%s(%d)->", n->stat.comm, n->stat.pid);
+    }
+    else
+    {
+        printf("%s(%d)\n", n->stat.comm, n->stat.pid);
     }
     return 0;
 }
@@ -308,7 +329,6 @@ int print_node_liketree(Node *n, void *buffer)
     Node_path_buff *path_buffer = (Node_path_buff *)buffer;
     path_buffer->path_lines[path_buffer->node_num] = n;
     path_buffer->node_num;
-
 
     return 0;
 }
@@ -336,12 +356,13 @@ void handle_proc_stat(const char *pid_dir)
     }
 
     process_stat stat;
-    int ret = fscanf(f, "%d %s %c %d", &stat.pid, stat.comm, &stat.state, &stat.ppid);
+    int ret =
+        fscanf(f, "%d %s %c %d", &stat.pid, stat.comm, &stat.state, &stat.ppid);
     int len = strlen(stat.comm);
     memmove(stat.comm, stat.comm + 1, len - 2);
     stat.comm[len - 2] = '\0';
     assert(ret == 4);
-    preOrder(&head, INSERT_MODE == INSERT_TO_TAIL ? insert_child_tail : insert_child_head, &stat);
+    preOrder(&head, insert_child, &stat);
     fclose(f);
 }
 
