@@ -264,7 +264,7 @@ void insert_new_node_tail(Node *node, Node *new)
     }
 }
 
-int insert_child(Node *node, void *user)
+int insert_new_node(Node *node, void *user)
 {
     process_stat *p_stat = (process_stat *)user;
     if (node->stat.pid != p_stat->ppid)
@@ -275,7 +275,7 @@ int insert_child(Node *node, void *user)
     Node *new = create_node_with_stat(p_stat);
     if (!new)
     {
-        // todo
+        // todo no memory
         return 1;
     }
 
@@ -284,43 +284,10 @@ int insert_child(Node *node, void *user)
     return 1;
 }
 
-/*
-    todo
-    有序插入
- */
-
-int insert_child_ordered(Node *node, void *user)
-{
-    process_stat *p_stat = (process_stat *)user;
-    if (node->stat.pid == p_stat->ppid)
-    {
-        if (!node->children)
-        {
-            node->children = create_node_with_stat(p_stat);
-        }
-        else
-        {
-            Node *tmp = node->children->brother;
-            node->children->brother = create_node_with_stat(p_stat);
-            node->children->brother->brother = tmp;
-        }
-        return 1;
-    }
-    return 0;
-}
-
 int print_node_simple(Node *n, void *null)
 {
-    // printf("cur pid %d ppid %d cmd %s child %p\n", n->stat.pid, n->stat.ppid,
-    // n->stat.comm, n->children);
-    if (n->children)
-    {
-        printf("%s(%d)->", n->stat.comm, n->stat.pid);
-    }
-    else
-    {
-        printf("%s(%d)\n", n->stat.comm, n->stat.pid);
-    }
+    printf("cur pid %d ppid %d cmd %s child %p\n", n->stat.pid, n->stat.ppid,
+    n->stat.comm, n->children);
     return 0;
 }
 
@@ -362,7 +329,7 @@ void handle_proc_stat(const char *pid_dir)
     memmove(stat.comm, stat.comm + 1, len - 2);
     stat.comm[len - 2] = '\0';
     assert(ret == 4);
-    preOrder(&head, insert_child, &stat);
+    preOrder(&head, insert_new_node, &stat);
     fclose(f);
 }
 
