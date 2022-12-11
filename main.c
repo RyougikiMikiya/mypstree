@@ -63,18 +63,10 @@ typedef struct _Node
     第三步，把分叉的节点符号替换掉
  */
 
-typedef struct _Node_path_buff
-{
-    Node *path_lines[NODE_MAX];
-    int node_num;
-} Node_path_buff;
-
 static Node head = {
     .stat.height = -1,
     .stat.pid = 0
 };
-
-static Node *node_path_buffer[NODE_MAX];
 
 /*
     返回0终止迭代
@@ -93,23 +85,6 @@ void print_nodes(Node **buffer, int len)
     }
     buf[offset] = '\0';
     printf("%s\n", buf);
-}
-
-void preOrder_print(Node *head, Node **buffer, int len)
-{
-    if (!head)
-        return;
-
-    buffer[len] = head;
-    len++;
-
-    if (!head->children)
-    {
-        print_nodes(buffer, len);
-    }
-
-    preOrder_print(head->children, buffer, len);
-    preOrder_print(head->brother, buffer, len);
 }
 
 /*
@@ -169,34 +144,6 @@ void print_node(Node *node, int offset, int is_bro)
 
     print_node(node->children, offset, 0);
     print_node(node->brother, prev_offset, 1);
-}
-
-void preOrder_print2(Node *node, int offset, int brother_offset)
-{
-    if (!node)
-        return;
-
-    offset += printf("%s(%d)", node->stat.comm, node->stat.pid);
-    if (node->children && node->children->brother)
-    {
-        offset += printf("-+-");
-        brother_offset = offset - 1;
-    }
-    else if (node->children)
-    {
-        offset += printf("---");
-    }
-    else if (!node->children)
-    {
-        printf("\n");
-        for (int i = 0; i < brother_offset; i++)
-        {
-            putchar(' ');
-        }
-    }
-
-    preOrder_print2(node->children, offset, brother_offset);
-    preOrder_print2(node->brother, brother_offset, brother_offset);
 }
 
 void preOrder(Node *head, node_iter_func func, void *user)
@@ -299,15 +246,6 @@ int insert_new_node(Node *node, void *user)
 int print_node_simple(Node *n, void *null)
 {
     printf("cur pid %d ppid %d height %d cmd %s child %p\n", n->stat.pid, n->stat.ppid, n->stat.height, n->stat.comm, n->children);
-    return 0;
-}
-
-int print_node_liketree(Node *n, void *buffer)
-{
-    Node_path_buff *path_buffer = (Node_path_buff *)buffer;
-    path_buffer->path_lines[path_buffer->node_num] = n;
-    path_buffer->node_num;
-
     return 0;
 }
 
